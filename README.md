@@ -34,13 +34,20 @@ Tauri 开发模式会先启动 Vite 开发服务器（端口 5173），然后打
 ## 构建
 
 ```bash
-# 1. 构建前端 + Rust 二进制
+# 构建前端 + Rust 二进制 + 安装包（MSI + NSIS）
 npm run tauri build
 
-# 2. 产物位于 src-tauri/target/release/bundle/
-#    - Windows: MSI 安装包 (.msi) 或 NSIS 安装程序 (.exe)
-#    - 便携版: src-tauri/target/release/ai-grading-assistant.exe
+# 或者一键构建并汇集产物到版本目录
+npm run release
 ```
+
+产物位于 `src-tauri/target/release/v{版本号}/`：
+
+| 文件 | 说明 |
+|------|------|
+| `AI阅卷助手_v{版本}_x64.exe` | 便携版（免安装，直接运行） |
+| `AI阅卷助手_{版本}_x64_zh-CN.msi` | MSI 安装包 |
+| `AI阅卷助手_{版本}_x64-setup.exe` | NSIS 安装程序 |
 
 ## 项目结构
 
@@ -64,6 +71,7 @@ AIGA-Tauri/
 │   ├── icons/              # 应用图标
 │   ├── Cargo.toml
 │   └── tauri.conf.json
+├── scripts/              # 构建工具脚本
 ├── package.json
 └── README.md
 ```
