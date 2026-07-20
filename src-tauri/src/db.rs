@@ -48,6 +48,13 @@ impl Database {
                 rubric TEXT NOT NULL DEFAULT '',
                 sort_order INTEGER NOT NULL DEFAULT 0,
                 reference_answer_image TEXT NOT NULL DEFAULT ''
+            );
+            CREATE TABLE IF NOT EXISTS logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                level TEXT NOT NULL DEFAULT 'INFO',
+                message TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT '',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );"
         ).expect("Failed to create tables");
         Database { conn }
@@ -159,7 +166,7 @@ impl Database {
             let q_max: f64 = row.get(2)?;
             let q_ref: String = row.get(3)?;
             let q_rubric: String = row.get(4)?;
-            let q_img: String = row.get(5)?;
+            let q_img: String = row.get(6)?;
             let ref_img = if q_img.is_empty() || q_img.starts_with("data:") { q_img } else { format!("data:image/png;base64,{}", q_img) };
             Ok(serde_json::json!({
                 "questionTitle": q_title,
@@ -236,5 +243,33 @@ impl Database {
 
     pub fn delete_template(&self, id: i64) -> bool {
         self.conn.execute("DELETE FROM exam WHERE id = ?", params![id]).is_ok()
+    }
+
+    // Log methods
+    pub fn write_log(&self, level: &str, message: &str, source: &str) {
+        let _ = self.conn.execute(
+            "INSERT INTO logs (level, message, source) VALUES (?1, ?2, ?3)",
+            params![level, message, source],
+        );
+    }
+
+    pub fn list_logs(&self, limit: i64) -> Vec<serde_json::Value> {
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM logs ORDER BY id DESC LIMIT ?"
+        ).unwrap();
+        let rows = stmt.query_map(params![limit], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "level": row.get::<_, String>(1)?,
+                "message": row.get::<_, String>(2)?,
+                "source": row.get::<_, String>(3)?,
+                "createdAt": row.get::<_, String>(4)?
+            }))
+        }).unwrap();
+        rows.filter_map(|r| r.ok()).collect()
+    }
+
+    pub fn clear_logs(&self) {
+        let _ = self.conn.execute("DELETE FROM logs", []);
     }
 }

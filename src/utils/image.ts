@@ -1,5 +1,8 @@
 export function addWatermark(base64: string, text: string): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (!base64 || typeof base64 !== 'string') {
+      return reject(new Error('无效的图片数据（base64 为空或格式错误）'))
+    }
     const img = new Image()
     img.onload = () => {
       let w = img.width; let h = img.height; const MAX = 2048; let scale = 1
@@ -14,7 +17,7 @@ export function addWatermark(base64: string, text: string): Promise<string> {
       ctx.fillText(text, padding, padding)
       resolve(canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, ''))
     }
-    img.onerror = () => reject(new Error('Failed to load image for watermark'))
+    img.onerror = () => reject(new Error('图片加载失败，请确认截图或图片文件有效'))
     img.src = `data:image/png;base64,${base64}`
   })
 }

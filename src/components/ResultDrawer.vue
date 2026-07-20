@@ -1,7 +1,7 @@
 <template>
   <div class="result-drawer" v-show="visible" @click.self="closeDrawer">
     <div class="drawer-panel">
-      <div class="drawer-header">
+      <div class="drawer-header" data-tauri-drag-region>
         <span class="drawer-title">AI 评分结果</span>
         <el-button text size="small" @click="closeDrawer">✕</el-button>
       </div>
@@ -89,6 +89,7 @@ import { useAppStore } from '@/stores/app'
 import { useGradingStore } from '@/stores/grading'
 import { useSettingsStore } from '@/stores/settings'
 import type { QuestionItem } from '@/types'
+import logger from '@/utils/logger'
 
 const appStore = useAppStore()
 const gradingStore = useGradingStore()
@@ -115,22 +116,12 @@ watch(() => gradingStore.currentResult, (val) => {
   }
 })
 
-watch(visible, async (val) => {
+watch(visible, (val) => {
   if (val) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const data: any = await invoke('grading_get_data')
-    if (data) {
-      gradingStore.setImage(data.image || '')
-      if (data.questions) {
-        questions.value = JSON.parse(JSON.stringify(data.questions))
-        gradingStore.setQuestions(data.questions)
-      }
-      currentIdx.value = data.currentQuestionIndex ?? 0
-      gradingStore.setCurrentQuestionIndex(currentIdx.value)
-      if (data.result) {
-        gradingStore.setResult(data.result)
-      }
+    if (gradingStore.questions.length) {
+      questions.value = JSON.parse(JSON.stringify(gradingStore.questions))
     }
+    currentIdx.value = gradingStore.currentQuestionIndex
   }
 })
 
@@ -169,7 +160,15 @@ async function gradeAt(idx: number) {
     })
     ElMessage.success(`第 ${idx + 1} 题评分完成`)
   } catch (err) {
-    errorMsg.value = (err as Error).message
+    let msg = String((err as any)?.message ?? err)
+    msg = msg.replace(/Error invoking '\w+':\s*/i, '')
+    if (/does not support image|not support.*image|image.*input|Cannot read|image\.png/i.test(msg)) {
+      msg = '当前模型不支持图片输入，请在设置中更换为支持视觉的模型'
+    } else if (/does not support|model.*capable|image.*not/i.test(msg)) {
+      msg = '当前模型不支持图片输入，请在设置中更换为支持视觉的模型'
+    }
+    logger.error(msg, 'gradeAt')
+    errorMsg.value = msg
   } finally {
     isGrading.value = false
   }
@@ -186,33 +185,35 @@ async function prevQuestion() {
 }
 
 async function saveAndAdvance(targetIdx: number) {
-  const { invoke } = await import('@tauri-apps/api/core')
+  const result = gradingStore.currentResult
+  if (!result) return
   try {
-    const result = gradingStore.currentResult
+    const { invoke } = await import('@tauri-apps/api/core')
     const raw = {
       questionId: 0,
       imagePath: '',
-      aiScore: result?.score ?? 0,
+      aiScore: result.score,
       teacherScore: teacherScore.value,
-      confidence: result?.confidence ?? 0,
+      confidence: result.confidence,
       studentAnswer: '',
       questionTitle: currentQuestion.value.questionTitle,
       maxScore: currentQuestion.value.maxScore,
       referenceAnswer: currentQuestion.value.referenceAnswer,
       rubric: currentQuestion.value.rubric,
-      deductions: result?.deductions,
-      comment: result?.comment,
+      deductions: result.deductions,
+      comment: result.comment,
       resultJson: JSON.stringify(result),
       imageData: gradingStore.currentImage || '',
       referenceAnswerImage: currentQuestion.value.referenceAnswerImage || ''
     }
     await invoke('grading_submit', { data: JSON.parse(JSON.stringify(raw)) })
     await invoke('rubric_set_next_index', { idx: targetIdx })
-    gradingStore.reset()
-    closeDrawer()
   } catch (err) {
-    ElMessage.error('保存失败：' + (err as Error).message)
+    const msg = String((err as any)?.message ?? err)
+    logger.error(msg, 'saveAndAdvance')
+    ElMessage.error('保存失败：' + msg)
   }
+  closeDrawer()
 }
 
 async function reGrade() {
@@ -249,14 +250,16 @@ async function confirmScore() {
     gradingStore.reset()
     closeDrawer()
   } catch (err) {
-    errorMsg.value = '保存失败：' + (err as Error).message
+    const msg = String((err as any)?.message ?? err)
+    logger.error(msg, 'confirmScore')
+    errorMsg.value = '保存失败：' + msg
   }
 }
 </script>
 
 <style scoped>
-.result-drawer { position: fixed; inset: 0; z-index: 99998; background: transparent; display: flex; justify-content: flex-end; }
-.drawer-panel { width: 480px; height: 100%; background: #fff; display: flex; flex-direction: column; box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15); }
+.result-drawer { position: fixed; inset: 0; z-index: 99998; background: #fff; display: flex; }
+.drawer-panel { width: 100%; height: 100%; background: #fff; display: flex; flex-direction: column; }
 .drawer-header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #eee; }
 .drawer-title { font-size: 16px; font-weight: 600; }
 .drawer-body { flex: 1; overflow-y: auto; padding: 16px; }

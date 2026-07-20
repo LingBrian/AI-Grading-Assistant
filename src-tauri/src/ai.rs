@@ -63,8 +63,7 @@ pub async fn call_ai_api(
                     {"type": "image_url", "image_url": {"url": format!("data:image/png;base64,{}", image_base64)}}
                 ]}
             ],
-            "max_tokens": 4096,
-            "temperature": 0.3
+            "max_tokens": 4096
         })
     } else {
         serde_json::json!({
@@ -76,8 +75,7 @@ pub async fn call_ai_api(
                     {"type": "image_url", "image_url": {"url": format!("data:image/png;base64,{}", image_base64)}}
                 ]}
             ],
-            "max_tokens": 4096,
-            "temperature": 0.3
+            "max_tokens": 4096
         })
     };
 
@@ -103,8 +101,10 @@ pub async fn call_ai_api(
                 let status = response.status();
                 if !status.is_success() {
                     let error_text = response.text().await.unwrap_or_default();
-                    if error_text.contains("does not support image") || error_text.contains("does not support") && error_text.contains("image") {
+                    if error_text.contains("does not support image") || error_text.contains("does not support") && error_text.contains("image") || error_text.contains("Cannot read") || error_text.contains("image.png") {
                         last_error = "当前模型不支持图片输入，请在设置中更换为支持视觉的模型（如 Qwen/Qwen2.5-32B-Instruct、gpt-4o 等）".to_string();
+                    } else if status.as_u16() == 401 || error_text.contains("invalid") || error_text.contains("Invalid") || error_text.contains("unauthorized") || error_text.contains("Unauthorized") || error_text.contains("Token") || error_text.contains("API key") {
+                        last_error = "API 认证失败，请检查 API Key 是否正确".to_string();
                     } else {
                         last_error = format!("API 返回错误 ({}): {}", status, &error_text);
                     }
@@ -117,14 +117,14 @@ pub async fn call_ai_api(
                 }
 
                 let body = response.text().await.map_err(|e| e.to_string())?;
-                if body.contains("does not support image") || body.contains("does not support") && body.contains("image") {
+                if body.contains("does not support image") || body.contains("does not support") && body.contains("image") || body.contains("Cannot read") || body.contains("image.png") {
                     last_error = "当前模型不支持图片输入，请在设置中更换为支持视觉的模型（如 Qwen/Qwen2.5-32B-Instruct、gpt-4o 等）".to_string();
                     log::warn!("AI API body error: {}", last_error);
                     return Err(last_error);
                 }
                 let json: Value = serde_json::from_str(&body).map_err(|e| format!("解析返回JSON失败: {}", e))?;
                 if let Some(err_msg) = json["error"]["message"].as_str() {
-                    if err_msg.contains("does not support image") || err_msg.contains("image input") {
+                    if err_msg.contains("does not support image") || err_msg.contains("image input") || err_msg.contains("Cannot read") || err_msg.contains("image.png") {
                         last_error = "当前模型不支持图片输入，请在设置中更换为支持视觉的模型（如 Qwen/Qwen2.5-32B-Instruct、gpt-4o 等）".to_string();
                         return Err(last_error);
                     }

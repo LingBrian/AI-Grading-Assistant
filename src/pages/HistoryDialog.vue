@@ -1,5 +1,10 @@
 <template>
-  <el-dialog v-model="visible" title="历史记录" width="800px" fullscreen :modal="false" @close="handleClose">
+  <el-dialog v-model="visible" fullscreen :modal="false" @close="handleClose">
+    <template #header>
+      <div class="dialog-header" data-tauri-drag-region>
+        <span class="dialog-title">历史记录</span>
+      </div>
+    </template>
     <el-table :data="records" style="width: 100%" size="small" v-loading="loading">
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="ai_score" label="AI分" width="70" />
@@ -96,6 +101,7 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '@/stores/app'
 import type { HistoryRecord } from '@/types'
+import logger from '@/utils/logger'
 
 const appStore = useAppStore()
 const visible = ref(false)
@@ -119,7 +125,8 @@ async function refresh() {
   try {
     const { invoke } = await import('@tauri-apps/api/core')
     records.value = await invoke('history_list')
-  } catch {
+  } catch (e) {
+    logger.error('refresh failed', 'HistoryDialog', e)
     records.value = []
   } finally {
     loading.value = false
@@ -137,7 +144,9 @@ async function viewResult(row: HistoryRecord) {
       ElMessage.warning('未找到记录详情')
     }
   } catch (err) {
-    ElMessage.error('加载详情失败：' + (err as Error).message)
+    const msg = String((err as any)?.message ?? err)
+    logger.error(msg, 'HistoryDialog.loadDetail')
+    ElMessage.error('加载详情失败：' + msg)
   }
 }
 

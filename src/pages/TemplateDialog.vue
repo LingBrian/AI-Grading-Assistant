@@ -39,6 +39,7 @@ import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '@/stores/app'
 import type { TemplateItem } from '@/types'
+import logger from '@/utils/logger'
 
 const appStore = useAppStore()
 const visible = ref(false)
@@ -50,8 +51,12 @@ watch(() => appStore.isTemplateDialogOpen, (val) => {
 })
 
 async function loadTemplates() {
-  const { invoke } = await import('@tauri-apps/api/core')
-  templates.value = await invoke('template_list')
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    templates.value = await invoke('template_list')
+  } catch (e) {
+    logger.error('loadTemplates failed', 'TemplateDialog', e)
+  }
 }
 
 async function selectTemplate(tpl: TemplateItem) {
@@ -59,40 +64,57 @@ async function selectTemplate(tpl: TemplateItem) {
     ElMessage.warning('该模板没有题目数据')
     return
   }
-  const { invoke } = await import('@tauri-apps/api/core')
-  const ok: boolean = await invoke('template_apply', { id: tpl.id })
-  if (ok) {
-    handleClose()
-  } else {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const ok: boolean = await invoke('template_apply', { id: tpl.id })
+    if (ok) {
+      handleClose()
+    } else {
+      ElMessage.error('应用模板失败')
+    }
+  } catch (e) {
+    logger.error('selectTemplate failed', 'TemplateDialog', e)
     ElMessage.error('应用模板失败')
   }
 }
 
 async function exportTemplates() {
-  const { invoke } = await import('@tauri-apps/api/core')
-  const ok: boolean = await invoke('template_export_json')
-  if (ok) {
-    ElMessage.success('模板已导出')
-  } else if (ok === false) {
-    ElMessage.warning('导出失败或已取消')
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const ok: boolean = await invoke('template_export_json')
+    if (ok) {
+      ElMessage.success('模板已导出')
+    } else if (ok === false) {
+      ElMessage.warning('导出失败或已取消')
+    }
+  } catch (e) {
+    logger.error('exportTemplates failed', 'TemplateDialog', e)
   }
 }
 
 async function importTemplates() {
-  const { invoke } = await import('@tauri-apps/api/core')
-  const result: any = await invoke('template_import_json')
-  if (result) {
-    ElMessage.success(`已导入 ${result.count} 个模板`)
-    loadTemplates()
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const result: any = await invoke('template_import_json')
+    if (result) {
+      ElMessage.success(`已导入 ${result.count} 个模板`)
+      loadTemplates()
+    }
+  } catch (e) {
+    logger.error('importTemplates failed', 'TemplateDialog', e)
   }
 }
 
 async function deleteTemplate(tpl: TemplateItem) {
-  const { invoke } = await import('@tauri-apps/api/core')
-  const ok: boolean = await invoke('template_delete', { id: tpl.id })
-  if (ok) {
-    ElMessage.success('已删除')
-    loadTemplates()
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const ok: boolean = await invoke('template_delete', { id: tpl.id })
+    if (ok) {
+      ElMessage.success('已删除')
+      loadTemplates()
+    }
+  } catch (e) {
+    logger.error('deleteTemplate failed', 'TemplateDialog', e)
   }
 }
 

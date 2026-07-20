@@ -22,6 +22,7 @@ export interface ApiConfig {
 
 export interface AppSettings {
   apiKey: string
+  apiKeyPresets: Record<string, string>
   baseUrl: string
   model: string
   shortcut: string

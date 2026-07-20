@@ -85,6 +85,7 @@ import { useAppStore } from '@/stores/app'
 import { useGradingStore } from '@/stores/grading'
 import type { QuestionItem } from '@/types'
 import { addWatermark } from '@/utils/image'
+import logger from '@/utils/logger'
 
 const appStore = useAppStore()
 const gradingStore = useGradingStore()
@@ -139,7 +140,9 @@ async function handleSave() {
     await invoke('rubric_reset_next_index')
     ElMessage.success('评分标准已保存')
   } catch (err) {
-    ElMessage.error('保存失败：' + (err as Error).message)
+    const msg = String((err as any)?.message ?? err)
+    logger.error(msg, 'RubricEditor.handleSave')
+    ElMessage.error('保存失败：' + msg)
   }
 }
 
@@ -149,7 +152,9 @@ async function handleExport() {
     await invoke('rubric_export_json')
     ElMessage.success('导出成功')
   } catch (err) {
-    ElMessage.error('导出失败：' + (err as Error).message)
+    const msg = String((err as any)?.message ?? err)
+    logger.error(msg, 'RubricEditor.handleExport')
+    ElMessage.error('导出失败：' + msg)
   }
 }
 
@@ -163,7 +168,9 @@ async function handleImport() {
       ElMessage.success(`已导入 ${data.questions.length} 题`)
     }
   } catch (err) {
-    ElMessage.error('导入失败：' + (err as Error).message)
+    const msg = String((err as any)?.message ?? err)
+    logger.error(msg, 'RubricEditor.handleImport')
+    ElMessage.error('导入失败：' + msg)
   }
 }
 
@@ -188,7 +195,9 @@ async function saveAsTemplate() {
       showTemplateForm.value = false
     }
   } catch (err) {
-    ElMessage.error('保存模板失败：' + (err as Error).message)
+    const msg = String((err as any)?.message ?? err)
+    logger.error(msg, 'RubricEditor.saveAsTemplate')
+    ElMessage.error('保存模板失败：' + msg)
   }
 }
 

@@ -4,6 +4,8 @@ html[data-window="win-dialog"] { background: #f5f7fa; }
 html[data-window="win-screenshot"] { background: transparent; }
 body { user-select: none; }
 #app { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+html[data-window="win-dialog"] .el-dialog { display: flex; flex-direction: column; height: 100%; }
+html[data-window="win-dialog"] .el-dialog .el-dialog__body { flex: 1; overflow-y: auto; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }

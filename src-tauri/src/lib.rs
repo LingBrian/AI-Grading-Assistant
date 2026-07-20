@@ -96,6 +96,7 @@ pub fn run() {
             commands::screenshot::screenshot_capture,
             commands::screenshot::screenshot_cancel,
             commands::ai_grade,
+            commands::ai_fetch_models,
             commands::history::history_list,
             commands::history::history_delete,
             commands::history::history_get_by_id,
@@ -117,6 +118,9 @@ pub fn run() {
             commands::template::template_import_json,
             commands::dialog_open,
             commands::dialog_open_image,
+            commands::log::log_write,
+            commands::log::log_list,
+            commands::log::log_clear,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -165,14 +169,16 @@ pub fn create_dialog_window(
             "settings" => "设置",
             "history" => "历史记录",
             "templates" => "模板管理",
+            "logs" => "日志",
             "rubric" => "评分标准",
             "result" => "评分结果",
             _ => "AI 阅卷助手",
         })
         .inner_size(width, height)
+        .min_inner_size(400.0, 300.0)
         .position(dx, dy)
         .decorations(false)
-        .resizable(false)
+        .resizable(true)
         .build()?;
     Ok(())
 }

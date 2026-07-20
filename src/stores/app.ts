@@ -8,6 +8,7 @@ export const useAppStore = defineStore('app', () => {
   const isHistoryDialogOpen = ref(false)
   const isTemplateDialogOpen = ref(false)
   const isRubricEditorOpen = ref(false)
+  const isLogDialogOpen = ref(false)
   const isGrading = ref(false)
 
   function toggleToolbar() { isToolbarVisible.value = !isToolbarVisible.value }
@@ -21,12 +22,14 @@ export const useAppStore = defineStore('app', () => {
   function closeTemplateDialog() { isTemplateDialogOpen.value = false }
   function openRubricEditor() { isRubricEditorOpen.value = true }
   function closeRubricEditor() { isRubricEditorOpen.value = false }
+  function openLogDialog() { isLogDialogOpen.value = true }
+  function closeLogDialog() { isLogDialogOpen.value = false }
 
   return {
     isToolbarVisible, isResultDrawerOpen, isSettingDialogOpen, isHistoryDialogOpen,
-    isTemplateDialogOpen, isRubricEditorOpen, isGrading,
+    isTemplateDialogOpen, isRubricEditorOpen, isLogDialogOpen, isGrading,
     toggleToolbar, openResultDrawer, closeResultDrawer, openSettingDialog, closeSettingDialog,
     openHistoryDialog, closeHistoryDialog, openTemplateDialog, closeTemplateDialog,
-    openRubricEditor, closeRubricEditor
+    openRubricEditor, closeRubricEditor, openLogDialog, closeLogDialog
   }
 })

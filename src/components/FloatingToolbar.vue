@@ -1,5 +1,5 @@
 <template>
-  <div ref="toolbarRef" class="floating-toolbar" :class="{ 'is-hidden': !appStore.isToolbarVisible }" @mousedown="onDragStart">
+  <div ref="toolbarRef" class="floating-toolbar" :class="{ 'is-hidden': !appStore.isToolbarVisible, 'has-notification': !!notification }" @mousedown="onDragStart">
     <div class="toolbar-buttons">
       <el-button class="toolbar-btn" @click="startScreenshot" :loading="appStore.isGrading">
         <span class="btn-icon">📷</span>
@@ -28,6 +28,10 @@
           <span class="btn-icon">📜</span>
           <span class="btn-label">历史</span>
         </el-button>
+        <el-button class="toolbar-btn sub-btn" @click="showMenu = false; openLogs()">
+          <span class="btn-icon">📋</span>
+          <span class="btn-label">日志</span>
+        </el-button>
         <el-button class="toolbar-btn collapse-btn" @click="showMenu = false">
           <span class="btn-icon">↩</span>
           <span class="btn-label">收起</span>
@@ -39,6 +43,7 @@
       </el-button>
     </div>
     <div class="status-bar">{{ statusText }}</div>
+    <div v-if="notification" :class="['notification-bar', `notification-${notificationType}`]">{{ notification }}</div>
   </div>
 </template>
 
@@ -50,6 +55,7 @@ import { useGradingStore } from '@/stores/grading'
 import { useSettingsStore } from '@/stores/settings'
 import { addWatermark } from '@/utils/image'
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window'
+import logger from '@/utils/logger'
 
 const appStore = useAppStore()
 const gradingStore = useGradingStore()
@@ -57,6 +63,16 @@ const settingsStore = useSettingsStore()
 
 const showMenu = ref(false)
 const toolbarRef = ref<HTMLElement | null>(null)
+const notification = ref('')
+const notificationType = ref<'success' | 'error' | 'warning'>('success')
+let notificationTimer: ReturnType<typeof setTimeout> | null = null
+
+function showNotification(msg: string, type: 'success' | 'error' | 'warning' = 'success', duration = 4000) {
+  notification.value = msg
+  notificationType.value = type
+  if (notificationTimer) clearTimeout(notificationTimer)
+  notificationTimer = setTimeout(() => { notification.value = '' }, duration)
+}
 
 const statusText = computed(() => {
   const questions = gradingStore.questions
@@ -69,11 +85,13 @@ async function resizeWindow() {
   if (toolbarRef.value) {
     try {
       const w = toolbarRef.value.scrollWidth + 2
-      await getCurrentWindow().setSize(new LogicalSize(Math.max(200, Math.min(w, 1200)), 64))
+      const h = toolbarRef.value.scrollHeight + 2
+      await getCurrentWindow().setSize(new LogicalSize(Math.max(200, Math.min(w, 1200)), h))
     } catch {}
   }
 }
 watch(showMenu, resizeWindow)
+watch(notification, resizeWindow)
 
 let unlistenScreenshot: (() => void) | null = null
 let unlistenRubric: (() => void) | null = null
@@ -88,7 +106,9 @@ onMounted(async () => {
           gradingStore.setImage(await addWatermark(event.payload, '学生答案'))
           await startGrading()
         } catch (err) {
-          ElMessage.error('水印处理失败：' + (err as Error).message)
+          const msg = String((err as any)?.message ?? err)
+          logger.error(msg, 'screenshot-completed')
+          ElMessage.error('水印处理失败：' + msg)
         }
       }
     })
@@ -100,7 +120,7 @@ onMounted(async () => {
         ElMessage.success(`已应用模板（${data.questions.length} 题）`)
       }
     })
-  } catch {}
+  } catch (e) { logger.error('listen rubric-updated failed', 'FloatingToolbar', e) }
 })
 
 onUnmounted(() => {
@@ -113,7 +133,9 @@ async function startScreenshot() {
   try {
     await invoke('screenshot_start')
   } catch (err) {
-    ElMessage.error('截图失败：' + (err as Error).message)
+    const msg = String((err as any)?.message ?? err)
+    logger.error(msg, 'startScreenshot')
+    ElMessage.error('截图失败：' + msg)
   }
 }
 
@@ -122,7 +144,9 @@ async function selectImage() {
   const data: any = await invoke('dialog_open_image')
   if (data) {
     try { gradingStore.setImage(await addWatermark(data.base64, '学生答案')) } catch (err) {
-      ElMessage.error('水印处理失败：' + (err as Error).message); return
+      const msg = String((err as any)?.message ?? err)
+      logger.error(msg, 'selectImage')
+      ElMessage.error('水印处理失败：' + msg); return
     }
     await startGrading()
   }
@@ -152,6 +176,7 @@ async function gradeQuestion(questionIdx: number) {
 }
 
 async function startGrading() {
+  await settingsStore.loadSettings()
   if (!gradingStore.currentImage) { ElMessage.info('请先截图或选择图片'); return }
   if (!settingsStore.settings.apiKey) {
     ElMessage.warning('请先在设置中配置 API Key')
@@ -172,12 +197,24 @@ async function startGrading() {
     const result = await gradeQuestion(nextIdx)
     if (!result) return
     gradingStore.setResult(result)
+    showNotification(`得分：${result.score} 分（${(result.confidence * 100).toFixed(0)}% 置信度）`, 'success')
     await invoke('grading_store_data', {
       data: { result, image: gradingStore.currentImage, questions, currentQuestionIndex: nextIdx }
     })
     await invoke('dialog_open', { dialogType: 'result' })
-  } catch (err) { ElMessage.error('AI 阅卷失败：' + (err as Error).message) }
-  finally { appStore.isGrading = false }
+    gradingStore.reset()
+  } catch (err) {
+    let msg = String((err as any)?.message ?? err)
+    msg = msg.replace(/Error invoking '\w+':\s*/i, '')
+    if (/does not support image|not support.*image|image.*input|Cannot read|image\.png/i.test(msg)) {
+      msg = '当前模型不支持图片输入，请在设置中更换为支持视觉的模型'
+    } else if (/does not support|model.*capable|image.*not/i.test(msg)) {
+      msg = '当前模型不支持图片输入，请在设置中更换为支持视觉的模型'
+    }
+    logger.error(msg, 'startGrading')
+    ElMessage.error(msg)
+    showNotification(msg, 'error', 6000)
+  } finally { appStore.isGrading = false }
 }
 
 function openRubric() {
@@ -189,6 +226,9 @@ async function openTemplates() {
 }
 function openHistory() {
   import('@tauri-apps/api/core').then(({ invoke }) => invoke('dialog_open', { dialogType: 'history' }))
+}
+function openLogs() {
+  import('@tauri-apps/api/core').then(({ invoke }) => invoke('dialog_open', { dialogType: 'logs' }))
 }
 function openSettings() {
   import('@tauri-apps/api/core').then(({ invoke }) => invoke('dialog_open', { dialogType: 'settings' }))
@@ -213,4 +253,8 @@ function onDragStart(e: MouseEvent) {
 .btn-icon { font-size: 16px; line-height: 1; }
 .btn-label { font-size: 10px; line-height: 1; white-space: nowrap; }
 .is-hidden { opacity: 0; pointer-events: none; }
+.notification-bar { padding: 4px 14px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; text-align: center; border-radius: 0 0 12px 12px; }
+.notification-success { color: #67c23a; background: rgba(103,194,58,0.1); }
+.notification-error { color: #f56c6c; background: rgba(245,108,108,0.1); }
+.notification-warning { color: #e6a23c; background: rgba(230,162,60,0.1); }
 </style>
